@@ -1,5 +1,9 @@
 package de.intranda.goobi.plugins;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
  *
@@ -20,8 +24,22 @@ package de.intranda.goobi.plugins;
  */
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
+import org.apache.commons.io.input.BOMInputStream;
+import org.apache.commons.lang.StringUtils;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.goobi.beans.Process;
 import org.goobi.beans.Step;
 import org.goobi.production.enums.PluginGuiType;
 import org.goobi.production.enums.PluginReturnValue;
@@ -29,43 +47,70 @@ import org.goobi.production.enums.PluginType;
 import org.goobi.production.enums.StepReturnValue;
 import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 
+import de.intranda.goobi.plugins.utils.ExcelConfig;
+import de.intranda.goobi.plugins.utils.MetadataMappingObject;
+import de.intranda.goobi.plugins.utils.PersonMappingObject;
 import de.sub.goobi.config.ConfigPlugins;
+import de.sub.goobi.helper.exceptions.DAOException;
+import de.sub.goobi.helper.exceptions.SwapException;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
+import ugh.dl.DigitalDocument;
+import ugh.dl.DocStruct;
+import ugh.dl.Fileformat;
+import ugh.dl.Metadata;
+import ugh.dl.MetadataType;
+import ugh.dl.Person;
+import ugh.dl.Prefs;
+import ugh.exceptions.MetadataTypeNotAllowedException;
+import ugh.exceptions.PreferencesException;
+import ugh.exceptions.ReadException;
+import ugh.exceptions.WriteException;
 
 @PluginImplementation
 @Log4j2
 public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
-    
+
+    // TODO where does the excel file come from? File system, file upload?
+
+    // TODO enrich existing elements or create new ones?
+
     @Getter
     private String title = "intranda_step_excelMetadataenrichment";
     @Getter
     private Step step;
-    @Getter
-    private String value;
-    @Getter 
-    private boolean allowTaskFinishButtons;
+
     private String returnPath;
+
+    private Process process;
+    private Prefs prefs;
+    private ExcelConfig ec;
+
+    @Getter
+    @Setter
+    private String excelFile;
 
     @Override
     public void initialize(Step step, String returnPath) {
         this.returnPath = returnPath;
         this.step = step;
-                
-        // read parameters from correct block in configuration file
+        process = step.getProzess();
+        prefs = process.getRegelsatz().getPreferences();
+
+        // read configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
-        value = myconfig.getString("value", "default value"); 
-        allowTaskFinishButtons = myconfig.getBoolean("allowTaskFinishButtons", false);
-        log.info("ExcelMetadataenrichment step plugin initialized");
+
+        ec = new ExcelConfig(myconfig);
+
     }
 
     @Override
     public PluginGuiType getPluginGuiType() {
-        return PluginGuiType.FULL;
         // return PluginGuiType.PART;
         // return PluginGuiType.PART_AND_FULL;
-        // return PluginGuiType.NONE;
+        return PluginGuiType.NONE;
     }
 
     @Override
@@ -87,7 +132,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
     public String finish() {
         return "/uii" + returnPath;
     }
-    
+
     @Override
     public int getInterfaceVersion() {
         return 0;
@@ -97,7 +142,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
     public HashMap<String, StepReturnValue> validate() {
         return null;
     }
-    
+
     @Override
     public boolean execute() {
         PluginReturnValue ret = run();
@@ -106,13 +151,222 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginReturnValue run() {
-        boolean successful = true;
-        // your logic goes here
-        
-        log.info("ExcelMetadataenrichment step plugin executed");
-        if (!successful) {
+
+        Fileformat fileformat = null;
+        DigitalDocument digitalDocument = null;
+        DocStruct logical = null;
+        try {
+            // read mets file
+            fileformat = process.readMetadataFile();
+            digitalDocument = fileformat.getDigitalDocument();
+            logical = digitalDocument.getLogicalDocStruct();
+            if (logical.getType().isAnchor()) {
+                logical = logical.getAllChildren().get(0);
+            }
+
+        } catch (ReadException | PreferencesException | WriteException | IOException | InterruptedException | SwapException | DAOException e) {
+            log.error(e);
             return PluginReturnValue.ERROR;
         }
+
+        // TODO find excel file
+
+        // read excel file
+
+        Map<String, Map<Integer, String>> completeMap = new HashMap<>();
+
+        String idColumn = ec.getExcelIdentifierColumn();
+        Map<String, Integer> headerOrder = new HashMap<>();
+        InputStream fileInputStream = null;
+        try {
+            fileInputStream = new FileInputStream(excelFile);
+            BOMInputStream in = new BOMInputStream(fileInputStream, false);
+            Workbook wb = WorkbookFactory.create(in);
+            Sheet sheet = wb.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.rowIterator();
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            // get header and data row number from config first
+            int rowHeader = ec.getRowHeader();
+            int rowDataStart = ec.getRowDataStart();
+            int rowDataEnd = ec.getRowDataEnd();
+            int rowCounter = 0;
+
+            //  find the header row
+            Row headerRow = null;
+            while (rowCounter < rowHeader) {
+                headerRow = rowIterator.next();
+                rowCounter++;
+            }
+
+            //  read and validate the header row
+            int numberOfCells = headerRow.getLastCellNum();
+            for (int i = 0; i < numberOfCells; i++) {
+                Cell cell = headerRow.getCell(i);
+                if (cell != null) {
+                    String value = cell.getStringCellValue();
+                    headerOrder.put(value, i);
+                }
+            }
+
+            // find out the first data row
+            while (rowCounter < rowDataStart - 1) {
+                headerRow = rowIterator.next();
+                rowCounter++;
+            }
+
+            while (rowIterator.hasNext() && rowCounter < rowDataEnd) {
+                Map<Integer, String> rowMap = new HashMap<>();
+                Row row = rowIterator.next();
+                rowCounter++;
+                int lastColumn = row.getLastCellNum();
+                if (lastColumn == -1) {
+                    continue;
+                }
+                for (int cn = 0; cn < lastColumn; cn++) {
+                    Cell cell = row.getCell(cn, MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    String value = "";
+                    switch (cell.getCellType()) {
+                        case BOOLEAN:
+                            value = cell.getBooleanCellValue() ? "true" : "false";
+                            break;
+                        case FORMULA:
+                            CellValue cellValue = evaluator.evaluate(cell);
+                            switch (cellValue.getCellType()) {
+                                case NUMERIC:
+                                    value = String.valueOf((long) cell.getNumericCellValue());
+                                    break;
+                                case STRING:
+                                    value = cell.getStringCellValue();
+                                    break;
+                                default:
+                                    value = "";
+                                    break;
+                            }
+                            break;
+                        case NUMERIC:
+                            value = String.valueOf((long) cell.getNumericCellValue());
+                            break;
+                        case STRING:
+                            value = cell.getStringCellValue();
+                            break;
+                        default:
+                            value = "";
+                            break;
+                    }
+                    rowMap.put(cn, value);
+                }
+
+                String identifier = rowMap.get(headerOrder.get(idColumn));
+                completeMap.put(identifier, rowMap);
+            }
+
+        } catch (Exception e) {
+            log.error(e);
+            return PluginReturnValue.ERROR;
+        } finally {
+            if (fileInputStream != null) {
+                try {
+                    fileInputStream.close();
+                } catch (IOException e) {
+                    log.error(e);
+                    return PluginReturnValue.ERROR;
+                }
+            }
+        }
+
+        // find structure element for each row
+        List<DocStruct> children = logical.getAllChildrenAsFlatList();
+
+        MetadataType identifierType = prefs.getMetadataTypeByName(ec.getDocstructIdentifier());
+
+        for (DocStruct child : children) {
+            // get identifier from docstruct
+            List<? extends Metadata> md = child.getAllMetadataByType(identifierType);
+            if (md != null && !md.isEmpty()) {
+                // search for excel metadata with this identifier
+                String docstructId = md.get(0).getValue();
+                Map<Integer, String> rowMap = completeMap.get(docstructId);
+                // add  metadata
+                for (MetadataMappingObject mmo : ec.getMetadataList()) {
+                    String metadataValue = rowMap.get(headerOrder.get(mmo.getHeaderName()));
+                    String identifier = null;
+                    if (mmo.getNormdataHeaderName() != null) {
+                        identifier = rowMap.get(headerOrder.get(mmo.getNormdataHeaderName()));
+                    }
+                    // TODO remove/overwrite/skip existing fields?
+                    if (StringUtils.isNotBlank(metadataValue)) {
+                        try {
+                            Metadata metadata = new Metadata(prefs.getMetadataTypeByName(mmo.getRulesetName()));
+                            metadata.setValue(metadataValue);
+                            if (StringUtils.isNotBlank(identifier)) {
+                                metadata.setAutorityFile("gnd", "http://d-nb.info/gnd/", identifier);
+                            }
+                            child.addMetadata(metadata);
+                        } catch (MetadataTypeNotAllowedException e) {
+                            // metadata is not allowed, ignore it
+                        }
+
+                    }
+                }
+
+                for (PersonMappingObject mmo : ec.getPersonList()) {
+                    String firstname = "";
+                    String lastname = "";
+                    if (mmo.isSplitName()) {
+                        String name = rowMap.get(headerOrder.get(mmo.getHeaderName()));
+                        if (StringUtils.isNotBlank(name)) {
+                            if (name.contains(mmo.getSplitChar())) {
+                                if (mmo.isFirstNameIsFirst()) {
+                                    firstname = name.substring(0, name.lastIndexOf(mmo.getSplitChar()));
+                                    lastname = name.substring(name.lastIndexOf(mmo.getSplitChar()));
+                                } else {
+                                    lastname = name.substring(0, name.lastIndexOf(mmo.getSplitChar())).trim();
+                                    firstname = name.substring(name.lastIndexOf(mmo.getSplitChar()) + 1).trim();
+                                }
+                            } else {
+                                lastname = name;
+                            }
+                        }
+                    } else {
+                        firstname = rowMap.get(headerOrder.get(mmo.getFirstnameHeaderName()));
+                        lastname = rowMap.get(headerOrder.get(mmo.getLastnameHeaderName()));
+                    }
+
+                    String identifier = null;
+                    if (mmo.getNormdataHeaderName() != null) {
+                        identifier = rowMap.get(headerOrder.get(mmo.getNormdataHeaderName()));
+                    }
+                    if (StringUtils.isNotBlank(mmo.getRulesetName())) {
+                        try {
+                            Person p = new Person(prefs.getMetadataTypeByName(mmo.getRulesetName()));
+                            p.setFirstname(firstname);
+                            p.setLastname(lastname);
+
+                            if (identifier != null) {
+                                p.setAutorityFile("gnd", "http://d-nb.info/gnd/", identifier);
+                            }
+
+                            child.addPerson(p);
+
+                            //                            logical.addPerson(p);
+                        } catch (MetadataTypeNotAllowedException e) {
+                            log.info(e);
+                            // Metadata is not known or not allowed
+                        }
+                    }
+                }
+
+            }
+        }
+
+        //  save mets file
+        try {
+            process.writeMetadataFile(fileformat);
+        } catch (WriteException | PreferencesException | IOException | InterruptedException | SwapException | DAOException e) {
+            log.error(e);
+            return PluginReturnValue.ERROR;
+        }
+
         return PluginReturnValue.FINISH;
     }
 }
