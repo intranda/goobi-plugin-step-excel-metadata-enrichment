@@ -22,6 +22,7 @@ public class ExcelConfig {
     private List<PersonMappingObject> personList = new ArrayList<>();
     private List<GroupMappingObject> groupList = new ArrayList<>();
     private String excelIdentifierColumn;
+    private String excelFolder;
 
     /**
      * loads the &lt;config&gt; block from xml file
@@ -33,7 +34,7 @@ public class ExcelConfig {
 
         firstLine = xmlConfig.getInt("/firstLine", 1);
         docstructIdentifier = xmlConfig.getString("/docstructIdentifier", null);
-
+        excelFolder = xmlConfig.getString("/excelFolder","master");
 
         excelIdentifierColumn = xmlConfig.getString("/excelIdentifierColumn", null);
 

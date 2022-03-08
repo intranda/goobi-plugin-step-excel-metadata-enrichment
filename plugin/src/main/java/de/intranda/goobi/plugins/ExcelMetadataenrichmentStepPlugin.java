@@ -3,6 +3,8 @@ package de.intranda.goobi.plugins;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Path;
 
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
@@ -51,6 +53,7 @@ import de.intranda.goobi.plugins.utils.ExcelConfig;
 import de.intranda.goobi.plugins.utils.MetadataMappingObject;
 import de.intranda.goobi.plugins.utils.PersonMappingObject;
 import de.sub.goobi.config.ConfigPlugins;
+import de.sub.goobi.helper.StorageProvider;
 import de.sub.goobi.helper.exceptions.DAOException;
 import de.sub.goobi.helper.exceptions.SwapException;
 import lombok.Getter;
@@ -90,7 +93,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
 
     @Getter
     @Setter
-    private String excelFile;
+    private String excelFile = null;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -169,7 +172,38 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
             return PluginReturnValue.ERROR;
         }
 
-        // TODO find excel file
+        // its always null unless we are in a junit test
+        if (excelFile == null) {
+            String folder = null;
+            // we have an existing folder
+            if (ec.getExcelFolder().contains("/")) {
+                folder = ec.getExcelFolder();
+            } else {
+                // we have a folder variable
+                try {
+                    folder = process.getConfiguredImageFolder(ec.getExcelFolder());
+                } catch (IOException | InterruptedException | SwapException | DAOException e) {
+                    log.error(e);
+                }
+            }
+
+            List<Path> excelFilesInFolder = StorageProvider.getInstance().listFiles(folder, EXCEL_FILTER);
+            if (excelFilesInFolder.size() == 1) {
+                excelFile = excelFilesInFolder.get(0).toString();
+            } else {
+                for (Path file : excelFilesInFolder) {
+                    if (file.getFileName().toString().toLowerCase().equals(process.getTitel().toLowerCase() + ".xlsx")) {
+                        excelFile = file.toString();
+                        break;
+                    }
+                }
+            }
+        }
+        // abort if no file was found
+        if (excelFile == null) {
+            log.error("No import file found for process {}", process.getId());
+            return PluginReturnValue.ERROR;
+        }
 
         // read excel file
 
@@ -244,7 +278,13 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
                             }
                             break;
                         case NUMERIC:
-                            value = String.valueOf((long) cell.getNumericCellValue());
+                            double val = cell.getNumericCellValue();
+                            String stringValue = String.valueOf(val);
+                            if (stringValue.endsWith(".0")) {
+                                value = String.valueOf((long) cell.getNumericCellValue());
+                            } else {
+                                value = stringValue;
+                            }
                             break;
                         case STRING:
                             value = cell.getStringCellValue();
@@ -369,4 +409,14 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
 
         return PluginReturnValue.FINISH;
     }
+
+    public static final DirectoryStream.Filter<Path> EXCEL_FILTER = new DirectoryStream.Filter<Path>() {
+
+        @Override
+        public boolean accept(Path path) {
+            String name = path.getFileName().toString();
+            return name.toLowerCase().endsWith(".xlsx");
+        }
+
+    };
 }
