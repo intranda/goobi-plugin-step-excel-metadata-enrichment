@@ -111,8 +111,6 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginGuiType getPluginGuiType() {
-        // return PluginGuiType.PART;
-        // return PluginGuiType.PART_AND_FULL;
         return PluginGuiType.NONE;
     }
 
