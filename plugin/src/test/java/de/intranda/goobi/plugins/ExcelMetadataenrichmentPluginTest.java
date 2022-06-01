@@ -102,7 +102,6 @@ public class ExcelMetadataenrichmentPluginTest {
         DocStruct ds3 = children.get(2);
         DocStruct ds4 = children.get(3);
 
-
         // first child: still empty as no identifier matched
         assertNull(ds1.getAllMetadata());
 
@@ -110,9 +109,9 @@ public class ExcelMetadataenrichmentPluginTest {
         assertEquals(2, ds2.getAllMetadata().size());
         assertEquals("second title", ds2.getAllMetadata().get(0).getValue());
 
-        // third child: existing title is kept, but language is added
+        // third child: existing title is overwritten, language is added
         assertEquals(3, ds3.getAllMetadata().size());
-        assertEquals("Existing main title", ds3.getAllMetadata().get(0).getValue());
+        assertEquals("chapter title", ds3.getAllMetadata().get(0).getValue());
         assertEquals("ger", ds3.getAllMetadata().get(1).getValue());
 
         // fourth child: author, title and language are added

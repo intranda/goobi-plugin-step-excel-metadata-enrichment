@@ -331,10 +331,15 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
                     if (mmo.getNormdataHeaderName() != null) {
                         identifier = rowMap.get(headerOrder.get(mmo.getNormdataHeaderName()));
                     }
+                    MetadataType type = prefs.getMetadataTypeByName(mmo.getRulesetName());
                     // TODO remove/overwrite/skip existing fields?
-                    if (StringUtils.isNotBlank(metadataValue)) {
+                    List<? extends Metadata> mdl = child.getAllMetadataByType(type);
+                    if (mdl != null && !mdl.isEmpty()) {
+                        Metadata existingMetadata = mdl.get(0);
+                        existingMetadata.setValue(metadataValue);
+                    } else if (StringUtils.isNotBlank(metadataValue)) {
                         try {
-                            Metadata metadata = new Metadata(prefs.getMetadataTypeByName(mmo.getRulesetName()));
+                            Metadata metadata = new Metadata(type);
                             metadata.setValue(metadataValue);
                             if (StringUtils.isNotBlank(identifier)) {
                                 metadata.setAutorityFile("gnd", "http://d-nb.info/gnd/", identifier);
