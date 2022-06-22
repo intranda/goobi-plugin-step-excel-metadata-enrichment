@@ -325,7 +325,13 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
                 String docstructId = md.get(0).getValue();
                 Map<Integer, String> rowMap = completeMap.get(docstructId);
                 // add  metadata
+                if (rowMap == null) {
+                    log.info("Skip import for " + docstructId);
+                    continue;
+                }
+
                 for (MetadataMappingObject mmo : ec.getMetadataList()) {
+
                     String metadataValue = rowMap.get(headerOrder.get(mmo.getHeaderName()));
                     String identifier = null;
                     if (mmo.getNormdataHeaderName() != null) {
