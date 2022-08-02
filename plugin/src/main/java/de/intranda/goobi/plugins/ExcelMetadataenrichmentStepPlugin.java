@@ -165,7 +165,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
                 logical = logical.getAllChildren().get(0);
             }
 
-        } catch (ReadException | PreferencesException | WriteException | IOException | InterruptedException | SwapException | DAOException e) {
+        } catch (ReadException | PreferencesException | IOException | SwapException e) {
             log.error(e);
             return PluginReturnValue.ERROR;
         }
@@ -180,7 +180,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
                 // we have a folder variable
                 try {
                     folder = process.getConfiguredImageFolder(ec.getExcelFolder());
-                } catch (IOException | InterruptedException | SwapException | DAOException e) {
+                } catch (IOException | SwapException | DAOException e) {
                     log.error(e);
                 }
             }
@@ -411,7 +411,7 @@ public class ExcelMetadataenrichmentStepPlugin implements IStepPluginVersion2 {
         //  save mets file
         try {
             process.writeMetadataFile(fileformat);
-        } catch (WriteException | PreferencesException | IOException | InterruptedException | SwapException | DAOException e) {
+        } catch (WriteException | PreferencesException | IOException | SwapException e) {
             log.error(e);
             return PluginReturnValue.ERROR;
         }
