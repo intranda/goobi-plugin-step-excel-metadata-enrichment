@@ -3,6 +3,10 @@ title: Metadata enrichment via Excel file
 identifier: intranda_step_excelMetadataenrichment
 published: true
 description: This Step Plugin enables the enrichment of metadata within a METS file based on data from an Excel file.
+keywords:
+    - Goobi workflow
+    - Plugin
+    - Step Plugin
 ---
 ## Introduction
 This plugin allows metadata to be read from an Excel file and added to existing structural elements.
