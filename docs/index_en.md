@@ -100,6 +100,6 @@ The configuration of the plug-in is structured as follows:
 
  The configuration of the metadata and personal data to be imported is already described here:
 
-[https://docs.goobi.io/goobi-workflow-plugins-en/import/intranda_import_excel#import-metadata](https://docs.goobi.io/goobi-workflow-plugins-en/import/intranda_import_excel#import-metadata)
+https://docs.goobi.io/en/workflow/plugins/import/goobi-plugin-import-excel#import-metadata
 
-[https://docs.goobi.io/goobi-workflow-plugins-en/import/intranda_import_excel#import-of-persons](https://docs.goobi.io/goobi-workflow-plugins-en/import/intranda_import_excel#import-of-persons)
+https://docs.goobi.io/en/workflow/plugins/import/goobi-plugin-import-excel#import-of-persons

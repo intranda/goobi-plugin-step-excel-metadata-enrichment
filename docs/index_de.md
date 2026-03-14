@@ -100,6 +100,6 @@ Mit den Feldern `<docstructIdentifier>` und `<excelIdentifierColumn>` wird festg
 
 Die Konfiguration der zu importierenden Metadaten und Personendaten wird bereits hier beschrieben:
 
-[https://docs.goobi.io/goobi-workflow-plugins-de/import/intranda_import_excel#import-von-metadaten](https://docs.goobi.io/goobi-workflow-plugins-de/import/intranda_import_excel#import-von-metadaten)
+https://docs.goobi.io/de/workflow/plugins/import/goobi-plugin-import-excel#import-von-metadaten
 
-[https://docs.goobi.io/goobi-workflow-plugins-de/import/intranda_import_excel#import-von-personen](https://docs.goobi.io/goobi-workflow-plugins-de/import/intranda_import_excel#import-von-personen)
+https://docs.goobi.io/de/workflow/plugins/import/goobi-plugin-import-excel#import-von-personen
